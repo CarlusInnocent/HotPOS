@@ -1,0 +1,219 @@
+package com.example.HotPOS.service;
+
+import com.example.HotPOS.dto.*;
+import com.example.HotPOS.entity.*;
+import com.example.HotPOS.enums.PaymentStatus;
+import com.example.HotPOS.enums.SerialNumberStatus;
+import com.example.HotPOS.exception.ResourceNotFoundException;
+import com.example.HotPOS.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class SaleService {
+
+    private final SaleRepository saleRepository;
+    private final BranchRepository branchRepository;
+    private final CustomerRepository customerRepository;
+    private final UserRepository userRepository;
+    private final ProductRepository productRepository;
+    private final StockItemRepository stockItemRepository;
+    private final SerialNumberRepository serialNumberRepository;
+
+    public List<SaleDTO> getSalesByBranch(Long branchId) {
+        return saleRepository.findByBranchIdOrderBySaleDateDesc(branchId).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<SaleDTO> getSalesByDateRange(Long branchId, LocalDate startDate, LocalDate endDate) {
+        return saleRepository.findByBranchAndDateRange(branchId, startDate, endDate).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<SaleDTO> getTodaySales(Long branchId) {
+        LocalDate today = LocalDate.now();
+        return saleRepository.findByBranchAndDateRange(branchId, today, today).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public SaleDTO getSaleById(Long id) {
+        Sale sale = saleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale not found with id: " + id));
+        return toDTO(sale);
+    }
+
+    public SaleDTO getSaleBySaleNumber(String saleNumber) {
+        Sale sale = saleRepository.findBySaleNumber(saleNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale not found with number: " + saleNumber));
+        return toDTO(sale);
+    }
+
+    @Transactional
+    public SaleDTO createSale(CreateSaleDTO dto, Long userId) {
+        Branch branch = branchRepository.findById(dto.getBranchId())
+                .orElseThrow(() -> new ResourceNotFoundException("Branch not found with id: " + dto.getBranchId()));
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        Customer customer = null;
+        if (dto.getCustomerId() != null) {
+            customer = customerRepository.findById(dto.getCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + dto.getCustomerId()));
+        }
+
+        // Generate sale number
+        String saleNumber = generateSaleNumber(branch.getCode());
+
+        Sale sale = Sale.builder()
+                .branch(branch)
+                .customer(customer)
+                .user(user)
+                .saleNumber(saleNumber)
+                .saleDate(LocalDate.now())
+                .customerName(customer == null && dto.getCustomerName() != null ? dto.getCustomerName().trim() : null)
+                .paymentMethod(dto.getPaymentMethod())
+                .paymentStatus(PaymentStatus.PAID)
+                .discountAmount(dto.getDiscountAmount() != null ? dto.getDiscountAmount() : BigDecimal.ZERO)
+                .notes(dto.getNotes())
+                .items(new ArrayList<>())
+                .build();
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        for (CreateSaleItemDTO itemDto : dto.getItems()) {
+            Product product = productRepository.findById(itemDto.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + itemDto.getProductId()));
+
+            // Check stock availability
+            StockItem stockItem = stockItemRepository.findByBranchIdAndProductId(branch.getId(), product.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Product " + product.getName() + " not available in this branch"));
+
+            if (stockItem.getQuantity() < itemDto.getQuantity()) {
+                throw new IllegalStateException(
+                        "Insufficient stock for " + product.getName() + 
+                        ". Available: " + stockItem.getQuantity() + ", Requested: " + itemDto.getQuantity());
+            }
+
+            // Use custom price if provided, otherwise branch-specific, otherwise product default
+            BigDecimal unitPrice;
+            if (itemDto.getUnitPrice() != null) {
+                unitPrice = itemDto.getUnitPrice(); // Custom price from cashier
+            } else if (stockItem.getSellingPrice() != null) {
+                unitPrice = stockItem.getSellingPrice(); // Branch-specific price
+            } else {
+                unitPrice = product.getSellingPrice(); // Default product price
+            }
+            BigDecimal itemDiscount = itemDto.getDiscount() != null ? itemDto.getDiscount() : BigDecimal.ZERO;
+            BigDecimal itemTotal = unitPrice.multiply(BigDecimal.valueOf(itemDto.getQuantity())).subtract(itemDiscount);
+
+            SaleItem saleItem = SaleItem.builder()
+                    .sale(sale)
+                    .product(product)
+                    .quantity(itemDto.getQuantity())
+                    .unitPrice(unitPrice)
+                    .costPrice(stockItem.getCostPrice())
+                    .totalPrice(itemTotal)
+                    .build();
+
+            sale.getItems().add(saleItem);
+            totalAmount = totalAmount.add(itemTotal);
+
+            // Reduce stock
+            stockItem.setQuantity(stockItem.getQuantity() - itemDto.getQuantity());
+            stockItemRepository.save(stockItem);
+
+            // Update serial numbers if applicable
+            if (product.getRequiresSerial() && itemDto.getSerialNumbers() != null) {
+                for (String serialNum : itemDto.getSerialNumbers()) {
+                    SerialNumber serial = serialNumberRepository.findBySerialNumber(serialNum)
+                            .orElseThrow(() -> new ResourceNotFoundException("Serial number not found: " + serialNum));
+                    
+                    if (serial.getStatus() != SerialNumberStatus.IN_STOCK) {
+                        throw new IllegalStateException("Serial number " + serialNum + " is not available for sale");
+                    }
+                    
+                    serial.setStatus(SerialNumberStatus.SOLD);
+                    serial.setSale(sale);
+                    serialNumberRepository.save(serial);
+                }
+            }
+        }
+
+        BigDecimal discountAmount = dto.getDiscountAmount() != null ? dto.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal grandTotal = totalAmount.subtract(discountAmount);
+
+        sale.setTotalAmount(totalAmount);
+        sale.setGrandTotal(grandTotal);
+
+        Sale saved = saleRepository.save(sale);
+        return toDTO(saved);
+    }
+
+    private String generateSaleNumber(String branchCode) {
+        String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        return "SL-" + branchCode + "-" + dateStr;
+    }
+
+    private SaleDTO toDTO(Sale sale) {
+        List<SaleItemDTO> items = sale.getItems().stream()
+                .map(item -> {
+                    // Fetch serial numbers sold with this item
+                    List<String> serials = null;
+                    if (item.getProduct().getRequiresSerial()) {
+                        serials = serialNumberRepository.findBySaleIdAndProductId(sale.getId(), item.getProduct().getId())
+                                .stream()
+                                .map(SerialNumber::getSerialNumber)
+                                .collect(Collectors.toList());
+                    }
+                    return SaleItemDTO.builder()
+                            .id(item.getId())
+                            .productId(item.getProduct().getId())
+                            .productName(item.getProduct().getName())
+                            .productSku(item.getProduct().getSku())
+                            .quantity(item.getQuantity())
+                            .unitPrice(item.getUnitPrice())
+                            .discount(BigDecimal.ZERO)
+                            .totalPrice(item.getTotalPrice())
+                            .serialNumbers(serials != null && !serials.isEmpty() ? serials : null)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return SaleDTO.builder()
+                .id(sale.getId())
+                .branchId(sale.getBranch().getId())
+                .branchName(sale.getBranch().getName())
+                .customerId(sale.getCustomer() != null ? sale.getCustomer().getId() : null)
+                .customerName(sale.getCustomer() != null ? sale.getCustomer().getName() 
+                    : (sale.getCustomerName() != null && !sale.getCustomerName().isEmpty() ? sale.getCustomerName() : "Walk-in Customer"))
+                .userId(sale.getUser().getId())
+                .userName(sale.getUser().getFullName())
+                .saleNumber(sale.getSaleNumber())
+                .saleDate(sale.getSaleDate())
+                .totalAmount(sale.getTotalAmount())
+                .taxAmount(sale.getTaxAmount())
+                .discountAmount(sale.getDiscountAmount())
+                .grandTotal(sale.getGrandTotal())
+                .paymentMethod(sale.getPaymentMethod())
+                .paymentStatus(sale.getPaymentStatus())
+                .notes(sale.getNotes())
+                .items(items)
+                .createdAt(sale.getCreatedAt())
+                .build();
+    }
+}

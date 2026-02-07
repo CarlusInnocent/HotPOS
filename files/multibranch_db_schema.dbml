@@ -1,0 +1,386 @@
+// Multi-Branch Company Database Schema
+// Designed for PostgreSQL with serial number tracking capability
+
+Table branches {
+  id SERIAL [pk, increment]
+  name VARCHAR(100) [not null]
+  code VARCHAR(20) [unique, not null]
+  address TEXT
+  phone VARCHAR(20)
+  email VARCHAR(100)
+  is_active BOOLEAN [default: true]
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    code [unique]
+    is_active
+  }
+}
+
+Table users {
+  id SERIAL [pk, increment]
+  branch_id INTEGER [ref: > branches.id, not null]
+  username VARCHAR(50) [unique, not null]
+  email VARCHAR(100) [unique, not null]
+  password_hash VARCHAR(255) [not null]
+  full_name VARCHAR(100) [not null]
+  role VARCHAR(20) [not null, note: 'admin, manager, cashier, stock_keeper']
+  phone VARCHAR(20)
+  is_active BOOLEAN [default: true]
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    username [unique]
+    email [unique]
+    branch_id
+    role
+  }
+}
+
+Table categories {
+  id SERIAL [pk, increment]
+  name VARCHAR(100) [not null]
+  description TEXT
+  parent_id INTEGER [ref: > categories.id, null, note: 'For subcategories']
+  is_active BOOLEAN [default: true]
+  created_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    parent_id
+    name
+  }
+}
+
+Table suppliers {
+  id SERIAL [pk, increment]
+  name VARCHAR(100) [not null]
+  contact_person VARCHAR(100)
+  email VARCHAR(100)
+  phone VARCHAR(20)
+  address TEXT
+  tax_id VARCHAR(50)
+  payment_terms VARCHAR(100)
+  is_active BOOLEAN [default: true]
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    name
+    is_active
+  }
+}
+
+Table customers {
+  id SERIAL [pk, increment]
+  name VARCHAR(100) [not null]
+  email VARCHAR(100)
+  phone VARCHAR(20)
+  address TEXT
+  tax_id VARCHAR(50)
+  credit_limit DECIMAL(15,2) [default: 0]
+  is_active BOOLEAN [default: true]
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    name
+    phone
+    is_active
+  }
+}
+
+Table products {
+  id SERIAL [pk, increment]
+  category_id INTEGER [ref: > categories.id, not null]
+  sku VARCHAR(50) [unique, not null]
+  name VARCHAR(200) [not null]
+  description TEXT
+  unit_of_measure VARCHAR(20) [not null, note: 'pcs, kg, liters, etc']
+  requires_serial BOOLEAN [default: false, note: 'TRUE for items like phones, laptops']
+  reorder_level INTEGER [default: 10]
+  selling_price DECIMAL(15,2) [not null]
+  is_active BOOLEAN [default: true]
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    sku [unique]
+    category_id
+    requires_serial
+    name
+  }
+}
+
+Table stock_items {
+  id SERIAL [pk, increment]
+  product_id INTEGER [ref: > products.id, not null]
+  branch_id INTEGER [ref: > branches.id, not null]
+  quantity INTEGER [not null, default: 0, note: 'For non-serialized: actual count. For serialized: count of serial_numbers']
+  cost_price DECIMAL(15,2) [not null, note: 'Average cost price']
+  last_stock_date TIMESTAMP [default: `now()`]
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    (product_id, branch_id) [unique, name: 'unique_product_per_branch']
+    branch_id
+    product_id
+  }
+}
+
+Table serial_numbers {
+  id SERIAL [pk, increment]
+  stock_item_id INTEGER [ref: > stock_items.id, not null]
+  serial_number VARCHAR(100) [unique, not null]
+  status VARCHAR(20) [not null, default: 'in_stock', note: 'in_stock, sold, transferred, returned']
+  purchase_id INTEGER [ref: > purchases.id, null]
+  sale_id INTEGER [ref: > sales.id, null]
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    serial_number [unique]
+    stock_item_id
+    status
+  }
+}
+
+Table purchases {
+  id SERIAL [pk, increment]
+  branch_id INTEGER [ref: > branches.id, not null]
+  supplier_id INTEGER [ref: > suppliers.id, not null]
+  user_id INTEGER [ref: > users.id, not null, note: 'Who created the purchase']
+  purchase_number VARCHAR(50) [unique, not null]
+  purchase_date DATE [not null, default: `now()`]
+  total_amount DECIMAL(15,2) [not null]
+  tax_amount DECIMAL(15,2) [default: 0]
+  discount_amount DECIMAL(15,2) [default: 0]
+  grand_total DECIMAL(15,2) [not null]
+  payment_status VARCHAR(20) [not null, default: 'pending', note: 'pending, partial, paid']
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    purchase_number [unique]
+    branch_id
+    supplier_id
+    purchase_date
+    payment_status
+  }
+}
+
+Table purchase_items {
+  id SERIAL [pk, increment]
+  purchase_id INTEGER [ref: > purchases.id, not null]
+  product_id INTEGER [ref: > products.id, not null]
+  quantity INTEGER [not null]
+  unit_cost DECIMAL(15,2) [not null]
+  total_cost DECIMAL(15,2) [not null]
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    purchase_id
+    product_id
+  }
+}
+
+Table sales {
+  id SERIAL [pk, increment]
+  branch_id INTEGER [ref: > branches.id, not null]
+  customer_id INTEGER [ref: > customers.id, null, note: 'NULL for walk-in customers']
+  user_id INTEGER [ref: > users.id, not null, note: 'Cashier who made the sale']
+  sale_number VARCHAR(50) [unique, not null]
+  sale_date DATE [not null, default: `now()`]
+  total_amount DECIMAL(15,2) [not null]
+  tax_amount DECIMAL(15,2) [default: 0]
+  discount_amount DECIMAL(15,2) [default: 0]
+  grand_total DECIMAL(15,2) [not null]
+  payment_method VARCHAR(20) [not null, note: 'cash, card, mobile_money, credit']
+  payment_status VARCHAR(20) [not null, default: 'paid', note: 'paid, partial, pending']
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    sale_number [unique]
+    branch_id
+    customer_id
+    sale_date
+    payment_status
+  }
+}
+
+Table sale_items {
+  id SERIAL [pk, increment]
+  sale_id INTEGER [ref: > sales.id, not null]
+  product_id INTEGER [ref: > products.id, not null]
+  quantity INTEGER [not null]
+  unit_price DECIMAL(15,2) [not null]
+  total_price DECIMAL(15,2) [not null]
+  cost_price DECIMAL(15,2) [not null, note: 'For profit calculation']
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    sale_id
+    product_id
+  }
+}
+
+Table returns {
+  id SERIAL [pk, increment]
+  branch_id INTEGER [ref: > branches.id, not null]
+  supplier_id INTEGER [ref: > suppliers.id, not null]
+  purchase_id INTEGER [ref: > purchases.id, null, note: 'Original purchase if linked']
+  user_id INTEGER [ref: > users.id, not null]
+  return_number VARCHAR(50) [unique, not null]
+  return_date DATE [not null, default: `now()`]
+  total_amount DECIMAL(15,2) [not null]
+  status VARCHAR(20) [not null, default: 'pending', note: 'pending, approved, rejected']
+  reason TEXT [not null]
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    return_number [unique]
+    branch_id
+    supplier_id
+    purchase_id
+    return_date
+  }
+}
+
+Table return_items {
+  id SERIAL [pk, increment]
+  return_id INTEGER [ref: > returns.id, not null]
+  product_id INTEGER [ref: > products.id, not null]
+  quantity INTEGER [not null]
+  unit_cost DECIMAL(15,2) [not null]
+  total_cost DECIMAL(15,2) [not null]
+  reason TEXT
+  created_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    return_id
+    product_id
+  }
+}
+
+Table refunds {
+  id SERIAL [pk, increment]
+  branch_id INTEGER [ref: > branches.id, not null]
+  customer_id INTEGER [ref: > customers.id, null]
+  sale_id INTEGER [ref: > sales.id, null, note: 'Original sale if linked']
+  user_id INTEGER [ref: > users.id, not null]
+  refund_number VARCHAR(50) [unique, not null]
+  refund_date DATE [not null, default: `now()`]
+  total_amount DECIMAL(15,2) [not null]
+  refund_method VARCHAR(20) [not null, note: 'cash, card, mobile_money, credit']
+  status VARCHAR(20) [not null, default: 'pending', note: 'pending, approved, rejected']
+  reason TEXT [not null]
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    refund_number [unique]
+    branch_id
+    customer_id
+    sale_id
+    refund_date
+  }
+}
+
+Table refund_items {
+  id SERIAL [pk, increment]
+  refund_id INTEGER [ref: > refunds.id, not null]
+  product_id INTEGER [ref: > products.id, not null]
+  quantity INTEGER [not null]
+  unit_price DECIMAL(15,2) [not null]
+  total_price DECIMAL(15,2) [not null]
+  reason TEXT
+  created_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    refund_id
+    product_id
+  }
+}
+
+Table transfers {
+  id SERIAL [pk, increment]
+  from_branch_id INTEGER [ref: > branches.id, not null]
+  to_branch_id INTEGER [ref: > branches.id, not null]
+  user_id INTEGER [ref: > users.id, not null, note: 'Who initiated the transfer']
+  transfer_number VARCHAR(50) [unique, not null]
+  transfer_date DATE [not null, default: `now()`]
+  status VARCHAR(20) [not null, default: 'pending', note: 'pending, in_transit, received, rejected']
+  sent_at TIMESTAMP
+  received_at TIMESTAMP
+  received_by INTEGER [ref: > users.id, null]
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    transfer_number [unique]
+    from_branch_id
+    to_branch_id
+    status
+    transfer_date
+  }
+}
+
+Table transfer_items {
+  id SERIAL [pk, increment]
+  transfer_id INTEGER [ref: > transfers.id, not null]
+  product_id INTEGER [ref: > products.id, not null]
+  quantity INTEGER [not null]
+  cost_price DECIMAL(15,2) [not null]
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    transfer_id
+    product_id
+  }
+}
+
+Table expenses {
+  id SERIAL [pk, increment]
+  branch_id INTEGER [ref: > branches.id, not null]
+  user_id INTEGER [ref: > users.id, not null]
+  expense_number VARCHAR(50) [unique, not null]
+  category VARCHAR(50) [not null, note: 'rent, utilities, salaries, transport, etc']
+  description TEXT [not null]
+  amount DECIMAL(15,2) [not null]
+  expense_date DATE [not null, default: `now()`]
+  payment_method VARCHAR(20) [not null]
+  receipt_number VARCHAR(50)
+  notes TEXT
+  created_at TIMESTAMP [default: `now()`]
+  updated_at TIMESTAMP [default: `now()`]
+  
+  Indexes {
+    expense_number [unique]
+    branch_id
+    category
+    expense_date
+  }
+}
+
+// Notes about the design:
+// 1. Serial numbers are only used when products.requires_serial = true
+// 2. For serialized items, stock_items.quantity should match count of serial_numbers with status='in_stock'
+// 3. Each transaction type (purchase, sale, return, refund) follows a header-items pattern
+// 4. Branch isolation is enforced via branch_id on all major entities
+// 5. Transfers explicitly track both source and destination branches
+// 6. All monetary values use DECIMAL(15,2) for precision
+// 7. Audit trails maintained via created_at/updated_at timestamps
+// 8. Payment and status fields use VARCHAR for flexibility (can be ENUM in PostgreSQL)
