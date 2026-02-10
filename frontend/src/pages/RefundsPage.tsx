@@ -112,6 +112,8 @@ function RefundsContent() {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
   const [selectedRefund, setSelectedRefund] = useState<Refund | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
 
   // Receipt lookup state
   const [receiptNumber, setReceiptNumber] = useState("")
@@ -296,6 +298,9 @@ function RefundsContent() {
   const pendingRefunds = refunds.filter(r => r.status === 'PENDING')
   const totalRefundsAmount = refunds.reduce((sum, r) => sum + r.totalAmount, 0)
 
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(refunds.length / pageSize))
+
   return (
     <SidebarProvider
       style={
@@ -398,37 +403,69 @@ function RefundsContent() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {refunds.map((refund) => (
-                            <TableRow key={refund.id}>
-                              <TableCell className="font-medium">{refund.refundNumber}</TableCell>
-                              <TableCell className="font-mono text-sm">{refund.saleNumber || "—"}</TableCell>
-                              <TableCell>{new Date(refund.refundDate).toLocaleDateString()}</TableCell>
-                              <TableCell>{refund.customerName || "Walk-in"}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{getPaymentMethodLabel(refund.refundMethod)}</Badge>
-                              </TableCell>
-                              <TableCell>{refund.userName}</TableCell>
-                              <TableCell>{getStatusBadge(refund.status)}</TableCell>
-                              <TableCell className="text-right font-medium">{formatUGX(refund.totalAmount)}</TableCell>
-                              <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={() => { setSelectedRefund(refund); setIsViewDialogOpen(true) }}>
-                                  <IconEye className="size-4" />
-                                </Button>
-                                {refund.status === 'PENDING' && (
-                                  <>
-                                    <Button variant="ghost" size="sm" onClick={() => { setSelectedRefund(refund); setIsApproveDialogOpen(true) }}>
-                                      <IconCheck className="size-4 text-green-600" />
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => { setSelectedRefund(refund); setIsRejectDialogOpen(true) }}>
-                                      <IconX className="size-4 text-red-600" />
-                                    </Button>
-                                  </>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {(() => {
+                            const paginatedRefunds = refunds.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                            return paginatedRefunds.map((refund) => (
+                              <TableRow key={refund.id}>
+                                <TableCell className="font-medium">{refund.refundNumber}</TableCell>
+                                <TableCell className="font-mono text-sm">{refund.saleNumber || "—"}</TableCell>
+                                <TableCell>{new Date(refund.refundDate).toLocaleDateString()}</TableCell>
+                                <TableCell>{refund.customerName || "Walk-in"}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{getPaymentMethodLabel(refund.refundMethod)}</Badge>
+                                </TableCell>
+                                <TableCell>{refund.userName}</TableCell>
+                                <TableCell>{getStatusBadge(refund.status)}</TableCell>
+                                <TableCell className="text-right font-medium">{formatUGX(refund.totalAmount)}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button variant="ghost" size="sm" onClick={() => { setSelectedRefund(refund); setIsViewDialogOpen(true) }}>
+                                    <IconEye className="size-4" />
+                                  </Button>
+                                  {refund.status === 'PENDING' && (
+                                    <>
+                                      <Button variant="ghost" size="sm" onClick={() => { setSelectedRefund(refund); setIsApproveDialogOpen(true) }}>
+                                        <IconCheck className="size-4 text-green-600" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => { setSelectedRefund(refund); setIsRejectDialogOpen(true) }}>
+                                        <IconX className="size-4 text-red-600" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          })()}
                         </TableBody>
                       </Table>
+                      
+                      {/* Pagination Controls */}
+                      {refunds.length > 0 && (
+                        <div className="flex items-center justify-between px-2 py-4 border-t">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">Rows per page</span>
+                            <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                              <SelectTrigger className="w-20 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[10, 20, 50, 100].map((size) => (
+                                  <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, refunds.length)} of {refunds.length}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                            <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>

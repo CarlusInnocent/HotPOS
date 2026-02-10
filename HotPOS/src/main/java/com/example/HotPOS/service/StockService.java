@@ -104,10 +104,10 @@ public class StockService {
     }
 
     private StockItemDTO toDTO(StockItem stockItem) {
-        // Use branch-specific selling price if set, otherwise fall back to product default
-        BigDecimal effectiveSellingPrice = stockItem.getSellingPrice() != null 
-                ? stockItem.getSellingPrice() 
-                : stockItem.getProduct().getSellingPrice();
+        // Always use the product's selling price as the source of truth
+        BigDecimal effectiveSellingPrice = stockItem.getProduct().getSellingPrice() != null 
+                ? stockItem.getProduct().getSellingPrice() 
+                : stockItem.getSellingPrice();
         
         return StockItemDTO.builder()
                 .id(stockItem.getId())

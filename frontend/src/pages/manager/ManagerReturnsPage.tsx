@@ -85,6 +85,10 @@ export function ManagerReturnsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [selectedReturn, setSelectedReturn] = useState<Return | null>(null)
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
+
   useEffect(() => {
     if (user?.branchId) {
       loadData()
@@ -229,6 +233,10 @@ export function ManagerReturnsPage() {
   const totalReturnValue = returnItems.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0)
   const pendingReturns = returns.filter(r => r.status?.toLowerCase() === 'pending')
 
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(returns.length / pageSize))
+  const paginatedReturns = returns.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   return (
     <SidebarProvider>
       <ManagerSidebar variant="inset" />
@@ -301,7 +309,7 @@ export function ManagerReturnsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {returns.map((ret) => (
+                        {paginatedReturns.map((ret) => (
                           <TableRow key={ret.id}>
                             <TableCell className="font-mono text-sm">{ret.returnNumber}</TableCell>
                             <TableCell>{new Date(ret.returnDate).toLocaleDateString()}</TableCell>
@@ -344,6 +352,35 @@ export function ManagerReturnsPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    
+                    {/* Pagination Controls */}
+                    {returns.length > 0 && (
+                      <div className="flex items-center justify-between px-2 py-4 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Rows per page</span>
+                          <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                            <SelectTrigger className="w-20 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[10, 20, 50, 100].map((size) => (
+                                <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, returns.length)} of {returns.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                          <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

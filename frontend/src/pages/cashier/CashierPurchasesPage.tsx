@@ -83,6 +83,10 @@ export function CashierPurchasesPage() {
   const [updatePrices, setUpdatePrices] = useState(false)
   const [serialEntries, setSerialEntries] = useState<Record<number, string[]>>({})
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
+
   useEffect(() => {
     if (user?.branchId) {
       loadData()
@@ -140,9 +144,24 @@ export function CashierPurchasesPage() {
   const handleCreatePurchase = async () => {
     if (!user?.branchId) return
     
-    const validItems = purchaseItems.filter(item => item.productId && item.quantity && item.unitCost)
+    const parsedItems = purchaseItems.map(item => ({
+      productId: item.productId,
+      quantity: parseInt(item.quantity, 10),
+      unitCost: item.unitCost.trim() === "" ? NaN : parseFloat(item.unitCost)
+    }))
+
+    const hasNegativeCost = parsedItems.some(item => Number.isFinite(item.unitCost) && item.unitCost < 0)
+    if (hasNegativeCost) {
+      toast.error("Unit cost cannot be negative")
+      return
+    }
+
+    const validItems = parsedItems.filter(item =>
+      item.productId && Number.isFinite(item.quantity) && item.quantity > 0
+    )
+
     if (!selectedSupplier || validItems.length === 0) {
-      toast.error("Please select a supplier and add at least one item")
+      toast.error("Please select a supplier and add at least one item with quantity above 0")
       return
     }
 
@@ -154,8 +173,8 @@ export function CashierPurchasesPage() {
         notes: notes || undefined,
         items: validItems.map(item => ({
           productId: parseInt(item.productId),
-          quantity: parseInt(item.quantity),
-          unitCost: parseFloat(item.unitCost)
+          quantity: item.quantity,
+          unitCost: Number.isFinite(item.unitCost) && item.unitCost >= 0 ? item.unitCost : undefined
         }))
       })
       toast.success("Purchase order created successfully!")
@@ -164,8 +183,11 @@ export function CashierPurchasesPage() {
       loadData()
     } catch (err: unknown) {
       console.error("Failed to create purchase:", err)
-      const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error.response?.data?.message || "Failed to create purchase order")
+      const error = err as { response?: { data?: { message?: string; errors?: Record<string, string> } } }
+      const validationMessage = error.response?.data?.errors
+        ? Object.values(error.response.data.errors).join(", ")
+        : undefined
+      toast.error(validationMessage || error.response?.data?.message || "Failed to create purchase order")
     } finally {
       setIsCreating(false)
     }
@@ -262,6 +284,11 @@ export function CashierPurchasesPage() {
     }
   }
 
+  // Pagination calculations - based on currently displayed data
+  const displayedPurchases = showAll ? allPurchases : purchases
+  const totalPages = Math.max(1, Math.ceil(displayedPurchases.length / pageSize))
+  const paginatedPurchases = displayedPurchases.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   return (
     <SidebarProvider>
       <AppSidebar variant="inset" />
@@ -336,7 +363,7 @@ export function CashierPurchasesPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(showAll ? allPurchases : purchases).map((purchase) => (
+                        {paginatedPurchases.map((purchase) => (
                           <TableRow key={purchase.id}>
                             <TableCell className="font-mono text-sm">{purchase.purchaseNumber}</TableCell>
                             <TableCell>{new Date(purchase.purchaseDate).toLocaleDateString()}</TableCell>
@@ -370,6 +397,34 @@ export function CashierPurchasesPage() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+                {/* Pagination Controls */}
+                {displayedPurchases.length > 0 && (
+                  <div className="flex items-center justify-between px-2 py-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Rows per page</span>
+                      <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-20 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[10, 20, 50, 100].map((size) => (
+                            <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, displayedPurchases.length)} of {displayedPurchases.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                      <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                    </div>
                   </div>
                 )}
               </CardContent>

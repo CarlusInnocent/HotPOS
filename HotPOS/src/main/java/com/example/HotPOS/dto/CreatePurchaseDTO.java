@@ -1,6 +1,7 @@
 package com.example.HotPOS.dto;
 
 import com.example.HotPOS.enums.PaymentMethod;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -26,6 +27,7 @@ public class CreatePurchaseDTO {
     
     private String notes;
     
+    @Valid
     @NotEmpty(message = "Purchase must have at least one item")
     private List<CreatePurchaseItemDTO> items;
 }

@@ -4,7 +4,7 @@ import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useAuth } from "@/context/auth-context"
 import { useCompany } from "@/context/CompanyContext"
-import { salesApi, type Sale } from "@/lib/api"
+import { salesApi, dashboardApi, type Sale, type DashboardStats } from "@/lib/api"
 import { toast } from "sonner"
 import {
   Card,
@@ -31,6 +31,8 @@ import {
   IconCalendar,
   IconRefresh,
   IconTrash,
+  IconTrendingUp,
+  IconTrendingDown,
 } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,6 +45,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 
 function formatUGX(amount: number): string {
@@ -66,11 +75,16 @@ export function ManagerHistoryPage() {
   const { user } = useAuth()
   const { settings: company } = useCompany()
   const [sales, setSales] = useState<Sale[]>([])
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null)
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
   
   const getTodayString = () => new Date().toLocaleDateString('en-CA')
   const getSevenDaysAgoString = () => {
@@ -93,8 +107,12 @@ export function ManagerHistoryPage() {
     if (!user?.branchId) return
     setLoading(true)
     try {
-      const data = await salesApi.getByDateRange(user.branchId, startDate, endDate)
+      const [data, statsData] = await Promise.all([
+        salesApi.getByDateRange(user.branchId, startDate, endDate),
+        dashboardApi.getStats(user.branchId)
+      ])
       setSales(data)
+      setStats(statsData)
     } catch (error) {
       console.error("Failed to load sales:", error)
       toast.error("Failed to load transaction history")
@@ -119,6 +137,10 @@ export function ManagerHistoryPage() {
 
   const totalSales = sales.reduce((sum, s) => sum + s.grandTotal, 0)
   const totalTransactions = sales.length
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(sales.length / pageSize))
+  const paginatedSales = sales.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <SidebarProvider>
@@ -183,18 +205,48 @@ export function ManagerHistoryPage() {
             </Card>
 
             {/* Summary */}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-4">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Total Sales</CardDescription>
+                  <CardDescription>Period Sales (Gross)</CardDescription>
                   <CardTitle className="text-2xl">{formatUGX(totalSales)}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">{totalTransactions} transactions</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>This Month (Net)</CardDescription>
+                  <CardTitle className="text-2xl">{formatUGX(stats?.totalSalesThisMonth || 0)}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">After refunds</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Avg. Transaction</CardDescription>
+                  <CardTitle className="text-2xl">{formatUGX(stats?.averageTransactionValue || 0)}</CardTitle>
                 </CardHeader>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Transactions</CardDescription>
-                  <CardTitle className="text-2xl">{totalTransactions}</CardTitle>
+                  <CardDescription>Net Profit</CardDescription>
+                  <CardTitle className={`text-2xl ${(stats?.netProfitThisMonth || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatUGX(stats?.netProfitThisMonth || 0)}
+                  </CardTitle>
                 </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-1 text-xs">
+                    {(stats?.netProfitThisMonth || 0) >= 0 ? (
+                      <IconTrendingUp className="size-3 text-green-500" />
+                    ) : (
+                      <IconTrendingDown className="size-3 text-red-500" />
+                    )}
+                    <span className="text-muted-foreground">This month</span>
+                  </div>
+                </CardContent>
               </Card>
             </div>
 
@@ -232,14 +284,25 @@ export function ManagerHistoryPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sales.map((sale) => (
-                          <TableRow key={sale.id}>
-                            <TableCell className="font-mono text-sm">{sale.saleNumber}</TableCell>
+                        {paginatedSales.map((sale) => (
+                          <TableRow key={sale.id} className={
+                            sale.refundStatus === 'FULL'
+                              ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
+                              : sale.refundStatus === 'PARTIAL'
+                                ? 'bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-950/50'
+                                : ''
+                          }>
+                            <TableCell className="font-mono text-sm leading-tight">
+                              <div>{sale.saleNumber}</div>
+                              {sale.referenceNumber && (
+                                <div className="text-[11px] text-muted-foreground">Ref: {sale.referenceNumber}</div>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <div className="flex flex-col">
-                                <span>{new Date(sale.saleDate).toLocaleDateString()}</span>
+                                <span>{new Date(sale.createdAt || sale.saleDate).toLocaleDateString()}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {new Date(sale.saleDate).toLocaleTimeString()}
+                                  {new Date(sale.createdAt || sale.saleDate).toLocaleTimeString()}
                                 </span>
                               </div>
                             </TableCell>
@@ -276,6 +339,34 @@ export function ManagerHistoryPage() {
                     </Table>
                   </div>
                 )}
+                {/* Pagination Controls */}
+                {sales.length > 0 && (
+                  <div className="flex items-center justify-between px-2 py-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Rows per page</span>
+                      <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-20 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[10, 20, 50, 100].map((size) => (
+                            <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, sales.length)} of {sales.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                      <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -294,7 +385,7 @@ export function ManagerHistoryPage() {
                 <h3 className="font-bold text-lg">{company.companyName}</h3>
                 <p className="text-sm text-muted-foreground">{selectedSale.branchName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(selectedSale.saleDate).toLocaleString()}
+                  {new Date(selectedSale.createdAt || selectedSale.saleDate).toLocaleString()}
                 </p>
               </div>
               

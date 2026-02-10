@@ -38,7 +38,7 @@ public class ReturnService {
     }
 
     public List<ReturnDTO> getReturnsByBranch(Long branchId) {
-        return returnRepository.findByBranchId(branchId).stream()
+        return returnRepository.findByBranchIdOrderByReturnDateDescCreatedAtDesc(branchId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }

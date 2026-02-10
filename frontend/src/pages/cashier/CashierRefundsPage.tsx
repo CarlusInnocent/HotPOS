@@ -88,6 +88,8 @@ export function CashierRefundsPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [selectedRefund, setSelectedRefund] = useState<Refund | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
 
   // Receipt lookup state
   const [receiptNumber, setReceiptNumber] = useState("")
@@ -230,6 +232,10 @@ export function CashierRefundsPage() {
   const approvedCount = refunds.filter(r => r.status === 'APPROVED').length
   const totalRefunded = refunds.filter(r => r.status === 'APPROVED').reduce((sum, r) => sum + r.totalAmount, 0)
 
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(refunds.length / pageSize))
+  const paginatedRefunds = refunds.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   return (
     <SidebarProvider>
       <AppSidebar variant="inset" />
@@ -308,7 +314,7 @@ export function CashierRefundsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {refunds.map((refund) => (
+                        {paginatedRefunds.map((refund) => (
                           <TableRow key={refund.id}>
                             <TableCell className="font-mono text-sm">{refund.refundNumber}</TableCell>
                             <TableCell className="font-mono text-xs">{refund.saleNumber || "—"}</TableCell>
@@ -334,6 +340,34 @@ export function CashierRefundsPage() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+                {/* Pagination Controls */}
+                {refunds.length > 0 && (
+                  <div className="flex items-center justify-between px-2 py-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Rows per page</span>
+                      <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-20 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[10, 20, 50, 100].map((size) => (
+                            <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, refunds.length)} of {refunds.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                      <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                    </div>
                   </div>
                 )}
               </CardContent>

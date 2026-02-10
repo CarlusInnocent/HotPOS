@@ -20,18 +20,25 @@ public interface TransferRepository extends JpaRepository<Transfer, Long> {
     
     List<Transfer> findByFromBranchId(Long fromBranchId);
     
+    List<Transfer> findByFromBranchIdOrderByTransferDateDescCreatedAtDesc(Long fromBranchId);
+    
     List<Transfer> findByToBranchId(Long toBranchId);
+    
+    List<Transfer> findByToBranchIdOrderByTransferDateDescCreatedAtDesc(Long toBranchId);
     
     List<Transfer> findByStatus(TransferStatus status);
     
     @Query("SELECT t FROM Transfer t WHERE (t.fromBranch.id = :branchId OR t.toBranch.id = :branchId)")
     List<Transfer> findByBranchId(@Param("branchId") Long branchId);
+
+    @Query("SELECT t FROM Transfer t WHERE (t.fromBranch.id = :branchId OR t.toBranch.id = :branchId) ORDER BY t.transferDate DESC, t.createdAt DESC")
+    List<Transfer> findByBranchIdOrderByDateDesc(@Param("branchId") Long branchId);
     
     @Query("SELECT t FROM Transfer t WHERE t.toBranch.id = :branchId AND t.status = 'IN_TRANSIT'")
     List<Transfer> findPendingReceiptsByBranch(@Param("branchId") Long branchId);
     
     List<Transfer> findByFromBranchIdAndTransferDateBetween(Long fromBranchId, LocalDate startDate, LocalDate endDate);
 
-    @Query("SELECT t FROM Transfer t WHERE t.toBranch.id = :branchId AND t.status = 'PENDING'")
+    @Query("SELECT t FROM Transfer t WHERE t.toBranch.id = :branchId AND t.status = 'PENDING' ORDER BY t.transferDate DESC, t.createdAt DESC")
     List<Transfer> findPendingTransfers(@Param("branchId") Long branchId);
 }

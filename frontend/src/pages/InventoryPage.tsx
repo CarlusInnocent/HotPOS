@@ -63,6 +63,10 @@ function InventoryContent() {
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [showLowStock, setShowLowStock] = useState(false)
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
+  
   // Add product dialog state
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [newProduct, setNewProduct] = useState({
@@ -174,6 +178,15 @@ function InventoryContent() {
     const matchesLowStock = !showLowStock || item.quantity <= (item.reorderLevel || 10)
     return matchesSearch && matchesCategory && matchesLowStock
   })
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredItems.length / pageSize)
+  const paginatedItems = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterCategory, showLowStock])
 
   const lowStockCount = stockItems.filter(item => item.quantity <= (item.reorderLevel || 10)).length
   const totalValue = stockItems.reduce((acc, item) => acc + (item.quantity * item.costPrice), 0)
@@ -392,6 +405,7 @@ function InventoryContent() {
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
                   ) : (
+                    <>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -406,7 +420,7 @@ function InventoryContent() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredItems.map((item) => {
+                        {paginatedItems.map((item) => {
                           const isLowStock = item.quantity <= (item.reorderLevel || 10)
                           return (
                             <TableRow key={item.id}>
@@ -441,7 +455,7 @@ function InventoryContent() {
                             </TableRow>
                           )
                         })}
-                        {filteredItems.length === 0 && (
+                        {paginatedItems.length === 0 && (
                           <TableRow>
                             <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                               No products found
@@ -450,6 +464,36 @@ function InventoryContent() {
                         )}
                       </TableBody>
                     </Table>
+                    
+                    {/* Pagination Controls */}
+                    {filteredItems.length > 0 && (
+                      <div className="flex items-center justify-between px-2 py-4 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Rows per page</span>
+                          <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                            <SelectTrigger className="w-20 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[10, 20, 50, 100].map((size) => (
+                                <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredItems.length)} of {filteredItems.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                          <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                        </div>
+                      </div>
+                    )}
+                    </>
                   )}
                 </CardContent>
               </Card>

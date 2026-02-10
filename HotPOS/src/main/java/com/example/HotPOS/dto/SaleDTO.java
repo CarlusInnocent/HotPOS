@@ -17,6 +17,11 @@ public class SaleDTO {
     private Long id;
     private Long branchId;
     private String branchName;
+    private String branchCode;
+    private String branchAddress;
+    private String branchPhone;
+    private String referenceNumber;
+    private Integer referenceSequence;
     private Long customerId;
     private String customerName;
     private Long userId;
@@ -32,4 +37,6 @@ public class SaleDTO {
     private String notes;
     private List<SaleItemDTO> items;
     private LocalDateTime createdAt;
+    private String refundStatus; // NONE, PARTIAL, FULL
+    private BigDecimal refundedAmount;
 }

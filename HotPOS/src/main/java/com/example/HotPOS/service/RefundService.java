@@ -38,7 +38,7 @@ public class RefundService {
     }
 
     public List<RefundDTO> getRefundsByBranch(Long branchId) {
-        return refundRepository.findByBranchId(branchId).stream()
+        return refundRepository.findByBranchIdOrderByRefundDateDescCreatedAtDesc(branchId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }

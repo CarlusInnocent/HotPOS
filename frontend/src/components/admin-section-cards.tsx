@@ -156,18 +156,18 @@ export function AdminSectionCards() {
       <Card className="@container/card">
         <CardHeader>
           <CardDescription>Net Profit</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+          <CardTitle className={`text-2xl font-semibold tabular-nums @[250px]/card:text-3xl ${stats.netProfitThisMonth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatUGX(stats.netProfitThisMonth)}
           </CardTitle>
           <CardAction>
-            <Badge variant="outline">
+            <Badge variant="outline" className={stats.netProfitThisMonth >= 0 ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600'}>
               {stats.netProfitThisMonth >= 0 ? <IconTrendingUp /> : <IconTrendingDown />}
               This Month
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
+          <div className={`line-clamp-1 flex gap-2 font-medium ${stats.netProfitThisMonth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {stats.netProfitThisMonth >= 0 ? "Profitable" : "Loss"}
             {stats.netProfitThisMonth >= 0 ? <IconTrendingUp className="size-4" /> : <IconTrendingDown className="size-4" />}
           </div>

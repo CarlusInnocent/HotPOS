@@ -87,6 +87,8 @@ function UsersContent() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [formData, setFormData] = useState<UserForm>(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
 
   const fetchData = async () => {
     try {
@@ -112,6 +114,10 @@ function UsersContent() {
   const filteredUsers = isCompanyView 
     ? users 
     : users.filter(u => u.branchId === selectedBranch?.id)
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const handleAddUser = async () => {
     if (!formData.branchId || !formData.username || !formData.password || !formData.fullName || !formData.role) {
@@ -287,32 +293,69 @@ function UsersContent() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredUsers.map((user) => (
-                            <TableRow key={user.id}>
-                              <TableCell className="font-medium">{user.fullName}</TableCell>
-                              <TableCell>{user.username}</TableCell>
-                              <TableCell>{user.email || "-"}</TableCell>
-                              <TableCell>{user.branchName}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{user.role}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={user.isActive ? "default" : "secondary"}>
-                                  {user.isActive ? "Active" : "Inactive"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={() => openEditDialog(user)}>
-                                  <IconPencil className="size-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(user)}>
-                                  <IconTrash className="size-4" />
-                                </Button>
+                          {paginatedUsers.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                No users found
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            paginatedUsers.map((user) => (
+                              <TableRow key={user.id}>
+                                <TableCell className="font-medium">{user.fullName}</TableCell>
+                                <TableCell>{user.username}</TableCell>
+                                <TableCell>{user.email || "-"}</TableCell>
+                                <TableCell>{user.branchName}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{user.role}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={user.isActive ? "default" : "secondary"}>
+                                    {user.isActive ? "Active" : "Inactive"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(user)}>
+                                    <IconPencil className="size-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(user)}>
+                                    <IconTrash className="size-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
+                      
+                      {/* Pagination Controls */}
+                      {filteredUsers.length > 0 && (
+                        <div className="flex items-center justify-between px-2 py-4 border-t">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">Rows per page</span>
+                            <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                              <SelectTrigger className="w-20 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[10, 20, 50, 100].map((size) => (
+                                  <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredUsers.length)} of {filteredUsers.length}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                            <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>

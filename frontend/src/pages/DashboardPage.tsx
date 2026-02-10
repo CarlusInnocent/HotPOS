@@ -32,7 +32,7 @@ import {
   IconBarcode,
 } from "@tabler/icons-react"
 import { useAuth } from "@/context/auth-context"
-import { salesApi, expenseApi, stockApi, serialApi, type Sale, type Expense, type StockItem } from "@/lib/api"
+import { salesApi, stockApi, serialApi, dashboardApi, type Sale, type StockItem, type DashboardStats } from "@/lib/api"
 import { toast } from "sonner"
 
 function formatUGX(amount: number): string {
@@ -42,9 +42,9 @@ function formatUGX(amount: number): string {
 export function DashboardPage() {
   const { user } = useAuth()
   const [sales, setSales] = useState<Sale[]>([])
-  const [expenses, setExpenses] = useState<Expense[]>([])
   const [lowStock, setLowStock] = useState<StockItem[]>([])
   const [serialStats, setSerialStats] = useState<{ total: number; inStock: number; sold: number; transferred: number; returned: number; defective: number }>({ total: 0, inStock: 0, sold: 0, transferred: 0, returned: 0, defective: 0 })
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -65,16 +65,16 @@ export function DashboardPage() {
         1
       ).toLocaleDateString("en-CA")
 
-      const [salesData, expenseData, lowStockData, serialStatsData] = await Promise.all([
+      const [salesData, lowStockData, serialStatsData, statsData] = await Promise.all([
         salesApi.getByDateRange(user.branchId, firstOfMonth, today),
-        expenseApi.getByBranch(user.branchId),
         stockApi.getLowStock(user.branchId),
         serialApi.getStats(user.branchId),
+        dashboardApi.getStats(user.branchId),
       ])
       setSales(salesData)
-      setExpenses(expenseData)
       setLowStock(lowStockData)
       setSerialStats(serialStatsData)
+      setStats(statsData)
     } catch (error) {
       console.error("Failed to load dashboard data:", error)
       toast.error("Failed to load dashboard data")
@@ -88,16 +88,6 @@ export function DashboardPage() {
   const todaySales = sales.filter(
     (s) => new Date(s.saleDate).toDateString() === today.toDateString()
   )
-  const totalToday = todaySales.reduce((sum, s) => sum + s.grandTotal, 0)
-  const totalThisMonth = sales.reduce((sum, s) => sum + s.grandTotal, 0)
-
-  const thisMonthExpenses = expenses.filter((e) => {
-    const d = new Date(e.expenseDate)
-    return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
-  })
-  const totalExpenses = thisMonthExpenses.reduce((sum, e) => sum + e.amount, 0)
-
-  const profit = totalThisMonth - totalExpenses
 
   return (
     <SidebarProvider>
@@ -125,15 +115,15 @@ export function DashboardPage() {
                     <CardHeader className="pb-2">
                       <CardDescription className="flex items-center gap-2">
                         <IconCash className="size-4" />
-                        Today's Sales
+                        Today's Net Sales
                       </CardDescription>
                       <CardTitle className="text-2xl">
-                        {formatUGX(totalToday)}
+                        {formatUGX(stats?.totalSalesToday || 0)}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <p className="text-xs text-muted-foreground">
-                        {todaySales.length} transactions today
+                        {stats?.transactionCountToday || 0} transactions today
                       </p>
                     </CardContent>
                   </Card>
@@ -142,15 +132,15 @@ export function DashboardPage() {
                     <CardHeader className="pb-2">
                       <CardDescription className="flex items-center gap-2">
                         <IconReceipt className="size-4" />
-                        This Month's Revenue
+                        This Month's Net Sales
                       </CardDescription>
                       <CardTitle className="text-2xl">
-                        {formatUGX(totalThisMonth)}
+                        {formatUGX(stats?.totalSalesThisMonth || 0)}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <p className="text-xs text-muted-foreground">
-                        {sales.length} total transactions
+                        {stats?.transactionCountThisMonth || 0} transactions
                       </p>
                     </CardContent>
                   </Card>
@@ -162,12 +152,12 @@ export function DashboardPage() {
                         This Month's Expenses
                       </CardDescription>
                       <CardTitle className="text-2xl">
-                        {formatUGX(totalExpenses)}
+                        {formatUGX(stats?.totalExpensesThisMonth || 0)}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <p className="text-xs text-muted-foreground">
-                        {thisMonthExpenses.length} expense records
+                        Expenses recorded this month
                       </p>
                     </CardContent>
                   </Card>
@@ -175,7 +165,7 @@ export function DashboardPage() {
                   <Card>
                     <CardHeader className="pb-2">
                       <CardDescription className="flex items-center gap-2">
-                        {profit >= 0 ? (
+                        {(stats?.netProfitThisMonth || 0) >= 0 ? (
                           <IconTrendingUp className="size-4 text-green-500" />
                         ) : (
                           <IconTrendingDown className="size-4 text-red-500" />
@@ -183,14 +173,14 @@ export function DashboardPage() {
                         Net Profit (This Month)
                       </CardDescription>
                       <CardTitle
-                        className={`text-2xl ${profit >= 0 ? "text-green-600" : "text-red-600"}`}
+                        className={`text-2xl ${(stats?.netProfitThisMonth || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
                       >
-                        {formatUGX(profit)}
+                        {formatUGX(stats?.netProfitThisMonth || 0)}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <p className="text-xs text-muted-foreground">
-                        Revenue minus expenses
+                        After refunds, COGS & expenses
                       </p>
                     </CardContent>
                   </Card>
@@ -206,8 +196,8 @@ export function DashboardPage() {
                       </CardDescription>
                       <CardTitle className="text-xl">
                         {formatUGX(
-                          sales.length > 0
-                            ? Math.round(totalThisMonth / sales.length)
+                          stats?.averageTransactionValue
+                            ? Math.round(stats.averageTransactionValue)
                             : 0
                         )}
                       </CardTitle>
@@ -240,7 +230,7 @@ export function DashboardPage() {
                         Today's Transactions
                       </CardDescription>
                       <CardTitle className="text-xl">
-                        {todaySales.length}
+                        {stats?.transactionCountToday || 0}
                       </CardTitle>
                     </CardHeader>
                   </Card>
@@ -397,7 +387,13 @@ export function DashboardPage() {
                           </TableHeader>
                           <TableBody>
                             {todaySales.slice(0, 10).map((sale) => (
-                              <TableRow key={sale.id}>
+                              <TableRow key={sale.id} className={
+                                sale.refundStatus === 'FULL'
+                                  ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
+                                  : sale.refundStatus === 'PARTIAL'
+                                    ? 'bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-950/50'
+                                    : ''
+                              }>
                                 <TableCell className="font-mono text-sm">
                                   {sale.saleNumber}
                                 </TableCell>

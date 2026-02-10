@@ -348,7 +348,7 @@ function ReportsContent() {
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead>Receipt #</TableHead>
+                                  <TableHead>Receipt / Ref</TableHead>
                                   <TableHead>Date</TableHead>
                                   <TableHead>Customer</TableHead>
                                   <TableHead>Payment</TableHead>
@@ -357,8 +357,19 @@ function ReportsContent() {
                               </TableHeader>
                               <TableBody>
                                 {sales.slice(0, 20).map((sale) => (
-                                  <TableRow key={sale.id}>
-                                    <TableCell className="font-medium">{sale.saleNumber}</TableCell>
+                                  <TableRow key={sale.id} className={
+                                    sale.refundStatus === 'FULL'
+                                      ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
+                                      : sale.refundStatus === 'PARTIAL'
+                                        ? 'bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-950/50'
+                                        : ''
+                                  }>
+                                    <TableCell className="font-medium leading-tight">
+                                      <div>{sale.saleNumber}</div>
+                                      {sale.referenceNumber && (
+                                        <div className="text-xs text-muted-foreground">Ref: {sale.referenceNumber}</div>
+                                      )}
+                                    </TableCell>
                                     <TableCell>{new Date(sale.saleDate).toLocaleDateString()}</TableCell>
                                     <TableCell>{sale.customerName || 'Walk-in'}</TableCell>
                                     <TableCell><Badge variant="outline">{sale.paymentMethod}</Badge></TableCell>

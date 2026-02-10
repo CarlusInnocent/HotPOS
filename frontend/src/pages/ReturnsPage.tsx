@@ -96,6 +96,8 @@ function ReturnsContent() {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
   const [selectedReturn, setSelectedReturn] = useState<Return | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
 
   // Form state
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("")
@@ -236,6 +238,9 @@ function ReturnsContent() {
   const pendingReturns = returns.filter(r => r.status === 'PENDING')
   const totalReturnsAmount = returns.reduce((sum, r) => sum + r.totalAmount, 0)
 
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(returns.length / pageSize))
+
   return (
     <SidebarProvider
       style={
@@ -336,33 +341,65 @@ function ReturnsContent() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {returns.map((ret) => (
-                            <TableRow key={ret.id}>
-                              <TableCell className="font-medium">{ret.returnNumber}</TableCell>
-                              <TableCell>{new Date(ret.returnDate).toLocaleDateString()}</TableCell>
-                              <TableCell>{ret.supplierName}</TableCell>
-                              <TableCell>{ret.userName}</TableCell>
-                              <TableCell>{getStatusBadge(ret.status)}</TableCell>
-                              <TableCell className="text-right font-medium">{formatUGX(ret.totalAmount)}</TableCell>
-                              <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={() => { setSelectedReturn(ret); setIsViewDialogOpen(true) }}>
-                                  <IconEye className="size-4" />
-                                </Button>
-                                {ret.status === 'PENDING' && (
-                                  <>
-                                    <Button variant="ghost" size="sm" onClick={() => { setSelectedReturn(ret); setIsApproveDialogOpen(true) }}>
-                                      <IconCheck className="size-4 text-green-600" />
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => { setSelectedReturn(ret); setIsRejectDialogOpen(true) }}>
-                                      <IconX className="size-4 text-red-600" />
-                                    </Button>
-                                  </>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {(() => {
+                            const paginatedReturns = returns.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                            return paginatedReturns.map((ret) => (
+                              <TableRow key={ret.id}>
+                                <TableCell className="font-medium">{ret.returnNumber}</TableCell>
+                                <TableCell>{new Date(ret.returnDate).toLocaleDateString()}</TableCell>
+                                <TableCell>{ret.supplierName}</TableCell>
+                                <TableCell>{ret.userName}</TableCell>
+                                <TableCell>{getStatusBadge(ret.status)}</TableCell>
+                                <TableCell className="text-right font-medium">{formatUGX(ret.totalAmount)}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button variant="ghost" size="sm" onClick={() => { setSelectedReturn(ret); setIsViewDialogOpen(true) }}>
+                                    <IconEye className="size-4" />
+                                  </Button>
+                                  {ret.status === 'PENDING' && (
+                                    <>
+                                      <Button variant="ghost" size="sm" onClick={() => { setSelectedReturn(ret); setIsApproveDialogOpen(true) }}>
+                                        <IconCheck className="size-4 text-green-600" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => { setSelectedReturn(ret); setIsRejectDialogOpen(true) }}>
+                                        <IconX className="size-4 text-red-600" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          })()}
                         </TableBody>
                       </Table>
+                      
+                      {/* Pagination Controls */}
+                      {returns.length > 0 && (
+                        <div className="flex items-center justify-between px-2 py-4 border-t">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">Rows per page</span>
+                            <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                              <SelectTrigger className="w-20 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[10, 20, 50, 100].map((size) => (
+                                  <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, returns.length)} of {returns.length}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                            <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                            <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>

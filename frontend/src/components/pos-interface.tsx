@@ -372,8 +372,8 @@ export function POSInterface() {
           <div class="text-center">
             <h2 class="bold">${company.companyName}</h2>
             <div class="shop-info">
-              ${company.address ? `<div>${company.address}</div>` : ''}
-              ${company.phone ? `<div>Tel: ${company.phone}</div>` : ''}
+              ${completedSale.branchAddress ? `<div>${completedSale.branchAddress}</div>` : (company.address ? `<div>${company.address}</div>` : '')}
+              ${completedSale.branchPhone ? `<div>Tel: ${completedSale.branchPhone}</div>` : (company.phone ? `<div>Tel: ${company.phone}</div>` : '')}
             </div>
           </div>
 

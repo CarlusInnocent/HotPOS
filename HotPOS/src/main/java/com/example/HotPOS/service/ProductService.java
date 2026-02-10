@@ -3,9 +3,11 @@ package com.example.HotPOS.service;
 import com.example.HotPOS.dto.ProductDTO;
 import com.example.HotPOS.entity.Category;
 import com.example.HotPOS.entity.Product;
+import com.example.HotPOS.entity.StockItem;
 import com.example.HotPOS.exception.ResourceNotFoundException;
 import com.example.HotPOS.repository.CategoryRepository;
 import com.example.HotPOS.repository.ProductRepository;
+import com.example.HotPOS.repository.StockItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final StockItemRepository stockItemRepository;
 
     public List<ProductDTO> getAllProducts() {
         return productRepository.findAll().stream()
@@ -104,6 +107,14 @@ public class ProductService {
         }
         
         Product saved = productRepository.save(product);
+        
+        // Sync selling price to all stock items for this product
+        List<StockItem> stockItems = stockItemRepository.findByProductId(id);
+        for (StockItem stockItem : stockItems) {
+            stockItem.setSellingPrice(dto.getSellingPrice());
+        }
+        stockItemRepository.saveAll(stockItems);
+        
         return toDTO(saved);
     }
 

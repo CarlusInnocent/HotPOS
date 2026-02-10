@@ -18,12 +18,11 @@ public class CreatePurchaseItemDTO {
     @NotNull(message = "Quantity is required")
     @Min(value = 1, message = "Quantity must be at least 1")
     private Integer quantity;
-    
-    @NotNull(message = "Unit cost is required")
+
+    // Optional at creation; if not provided it will default to zero
     private BigDecimal unitCost;
     
-    @NotNull(message = "Selling price is required")
-    private BigDecimal sellingPrice;
+    private BigDecimal sellingPrice; // Optional at creation, used during receive
     
     private List<String> serialNumbers; // Required for products with requiresSerial=true
 }

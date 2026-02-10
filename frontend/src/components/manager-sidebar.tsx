@@ -13,7 +13,6 @@ import {
   IconBox,
   IconCategory,
   IconTransfer,
-  IconBarcode,
   IconDeviceMobile,
 } from "@tabler/icons-react"
 

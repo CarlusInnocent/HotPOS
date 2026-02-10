@@ -59,6 +59,9 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
                                             @Param("startDate") LocalDate startDate, 
                                             @Param("endDate") LocalDate endDate);
 
+    @Query("SELECT COALESCE(MAX(s.referenceSequence), 0) FROM Sale s WHERE s.branch.id = :branchId")
+    Integer findMaxReferenceSequenceForBranch(@Param("branchId") Long branchId);
+
     @Query("SELECT COUNT(s) FROM Sale s WHERE s.saleDate = :date")
     Long countByDate(@Param("date") LocalDate date);
 
@@ -69,4 +72,12 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     @Query("SELECT s.branch.name, COALESCE(SUM(s.grandTotal), 0) FROM Sale s WHERE s.saleDate BETWEEN :startDate AND :endDate GROUP BY s.branch.name")
     List<Object[]> getSalesByBranch(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    // Get total cost of goods sold (COGS) for all branches
+    @Query("SELECT COALESCE(SUM(si.costPrice * si.quantity), 0) FROM Sale s JOIN s.items si WHERE s.saleDate BETWEEN :startDate AND :endDate")
+    BigDecimal getTotalCOGS(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    // Get total cost of goods sold (COGS) for a specific branch
+    @Query("SELECT COALESCE(SUM(si.costPrice * si.quantity), 0) FROM Sale s JOIN s.items si WHERE s.branch.id = :branchId AND s.saleDate BETWEEN :startDate AND :endDate")
+    BigDecimal getTotalCOGSByBranch(@Param("branchId") Long branchId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 }

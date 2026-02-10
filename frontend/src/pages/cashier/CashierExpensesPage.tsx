@@ -97,6 +97,10 @@ export function CashierExpensesPage() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
+
   useEffect(() => {
     if (user?.branchId) {
       loadExpenses()
@@ -152,6 +156,10 @@ export function CashierExpensesPage() {
   }
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(expenses.length / pageSize))
+  const paginatedExpenses = expenses.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -224,7 +232,7 @@ export function CashierExpensesPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {expenses.map((expense) => (
+                        {paginatedExpenses.map((expense) => (
                           <TableRow key={expense.id}>
                             <TableCell>{new Date(expense.expenseDate).toLocaleDateString()}</TableCell>
                             <TableCell>
@@ -247,6 +255,34 @@ export function CashierExpensesPage() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+                {/* Pagination Controls */}
+                {expenses.length > 0 && (
+                  <div className="flex items-center justify-between px-2 py-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Rows per page</span>
+                      <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-20 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[10, 20, 50, 100].map((size) => (
+                            <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, expenses.length)} of {expenses.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                      <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                    </div>
                   </div>
                 )}
               </CardContent>

@@ -19,6 +19,8 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
     boolean existsByPurchaseNumber(String purchaseNumber);
     
     List<Purchase> findByBranchId(Long branchId);
+
+    List<Purchase> findByBranchIdOrderByPurchaseDateDescCreatedAtDesc(Long branchId);
     
     List<Purchase> findBySupplierId(Long supplierId);
     

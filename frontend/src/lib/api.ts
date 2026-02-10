@@ -164,6 +164,11 @@ export interface Sale {
   id: number;
   branchId: number;
   branchName: string;
+  branchCode?: string;
+  branchAddress?: string;
+  branchPhone?: string;
+  referenceNumber?: string;
+  referenceSequence?: number;
   userId: number;
   userName: string;
   customerId?: number;
@@ -174,11 +179,14 @@ export interface Sale {
   taxAmount: number;
   discountAmount: number;
   grandTotal: number;
+  amountPaid?: number;
   paymentMethod: string;
   paymentStatus: string;
   notes?: string;
   items: SaleItem[];
   createdAt?: string;
+  refundStatus?: string; // NONE, PARTIAL, FULL
+  refundedAmount?: number;
 }
 
 export interface CreateSaleItem {
@@ -638,7 +646,7 @@ export const purchaseApi = {
     supplierId: number;
     paymentMethod?: string;
     notes?: string;
-    items: Array<{ productId: number; quantity: number; unitCost: number; serialNumbers?: string[] }>;
+    items: Array<{ productId: number; quantity: number; unitCost?: number; serialNumbers?: string[] }>;
   }): Promise<Purchase> => {
     const response = await api.post<Purchase>('/purchases', {
       ...data,

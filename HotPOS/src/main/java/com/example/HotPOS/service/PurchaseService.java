@@ -31,7 +31,7 @@ public class PurchaseService {
     private final SerialNumberRepository serialNumberRepository;
 
     public List<PurchaseDTO> getPurchasesByBranch(Long branchId) {
-        return purchaseRepository.findByBranchId(branchId).stream()
+        return purchaseRepository.findByBranchIdOrderByPurchaseDateDescCreatedAtDesc(branchId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -77,17 +77,18 @@ public class PurchaseService {
 
         for (CreatePurchaseItemDTO itemDto : dto.getItems()) {
             Product product = productRepository.findById(itemDto.getProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + itemDto.getProductId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + itemDto.getProductId()));
 
-            BigDecimal itemTotal = itemDto.getUnitCost().multiply(BigDecimal.valueOf(itemDto.getQuantity()));
+            BigDecimal unitCost = itemDto.getUnitCost() != null ? itemDto.getUnitCost() : BigDecimal.ZERO;
+            BigDecimal itemTotal = unitCost.multiply(BigDecimal.valueOf(itemDto.getQuantity()));
 
             PurchaseItem purchaseItem = PurchaseItem.builder()
-                    .purchase(purchase)
-                    .product(product)
-                    .quantity(itemDto.getQuantity())
-                    .unitCost(itemDto.getUnitCost())
-                    .totalCost(itemTotal)
-                    .build();
+                .purchase(purchase)
+                .product(product)
+                .quantity(itemDto.getQuantity())
+                .unitCost(unitCost)
+                .totalCost(itemTotal)
+                .build();
 
             purchase.getItems().add(purchaseItem);
             totalAmount = totalAmount.add(itemTotal);
@@ -191,15 +192,15 @@ public class PurchaseService {
     private PurchaseDTO toDTO(Purchase purchase) {
         List<PurchaseItemDTO> items = purchase.getItems().stream()
                 .map(item -> PurchaseItemDTO.builder()
-                        .id(item.getId())
-                        .productId(item.getProduct().getId())
-                        .productName(item.getProduct().getName())
-                        .productSku(item.getProduct().getSku())
-                        .quantity(item.getQuantity())
-                        .unitCost(item.getUnitCost())
-                        .sellingPrice(item.getProduct().getSellingPrice())
-                        .totalCost(item.getTotalCost())
-                        .build())
+                    .id(item.getId())
+                    .productId(item.getProduct().getId())
+                    .productName(item.getProduct().getName())
+                    .productSku(item.getProduct().getSku())
+                    .quantity(item.getQuantity())
+                    .unitCost(item.getUnitCost() != null ? item.getUnitCost() : BigDecimal.ZERO)
+                    .sellingPrice(item.getProduct().getSellingPrice())
+                    .totalCost(item.getTotalCost())
+                    .build())
                 .collect(Collectors.toList());
 
         return PurchaseDTO.builder()

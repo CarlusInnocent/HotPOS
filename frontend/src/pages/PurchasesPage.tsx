@@ -54,6 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { purchaseApi, supplierApi, productApi, branchApi, type Purchase, type Supplier, type Product } from "@/lib/api"
+import { toast } from "sonner"
 
 function PurchasesContent() {
   const { selectedBranch, isCompanyView } = useBranch()
@@ -73,6 +74,8 @@ function PurchasesContent() {
   // View dialog state
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
 
   useEffect(() => {
     loadData()
@@ -125,24 +128,50 @@ function PurchasesContent() {
 
   const handleCreatePurchase = async () => {
     if (!selectedBranch) return
+    
+    const parsedItems = purchaseItems.map(item => ({
+      productId: item.productId,
+      quantity: parseInt(item.quantity, 10),
+      unitCost: item.unitCost.trim() === "" ? NaN : parseFloat(item.unitCost)
+    }))
+
+    const hasNegativeCost = parsedItems.some(item => Number.isFinite(item.unitCost) && item.unitCost < 0)
+    if (hasNegativeCost) {
+      toast.error("Unit cost cannot be negative")
+      return
+    }
+
+    const validItems = parsedItems.filter(item =>
+      item.productId && Number.isFinite(item.quantity) && item.quantity > 0
+    )
+
+    if (!selectedSupplier || validItems.length === 0) {
+      toast.error("Please select a supplier and add at least one item with quantity above 0")
+      return
+    }
+
     try {
       await purchaseApi.create({
         branchId: selectedBranch.id,
         supplierId: parseInt(selectedSupplier),
         notes: notes || undefined,
-        items: purchaseItems
-          .filter(item => item.productId && item.quantity && item.unitCost)
-          .map(item => ({
-            productId: parseInt(item.productId),
-            quantity: parseInt(item.quantity),
-            unitCost: parseFloat(item.unitCost)
-          }))
+        items: validItems.map(item => ({
+          productId: parseInt(item.productId),
+          quantity: item.quantity,
+          unitCost: Number.isFinite(item.unitCost) && item.unitCost >= 0 ? item.unitCost : undefined
+        }))
       })
+      toast.success("Purchase order created successfully!")
       setIsCreateDialogOpen(false)
       resetForm()
       loadData()
-    } catch (error) {
-      console.error("Failed to create purchase:", error)
+    } catch (err: unknown) {
+      console.error("Failed to create purchase:", err)
+      const error = err as { response?: { data?: { message?: string; errors?: Record<string, string> } } }
+      const validationMessage = error.response?.data?.errors
+        ? Object.values(error.response.data.errors).join(", ")
+        : undefined
+      toast.error(validationMessage || error.response?.data?.message || "Failed to create purchase order")
     }
   }
 
@@ -181,6 +210,10 @@ function PurchasesContent() {
 
   const pendingCount = purchases.filter(p => p.status === "PENDING").length
   const totalPurchaseValue = purchases.reduce((acc, p) => acc + p.totalAmount, 0)
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(purchases.length / pageSize))
+  const paginatedPurchases = purchases.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <SidebarProvider
@@ -367,6 +400,7 @@ function PurchasesContent() {
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
                   ) : (
+                    <>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -380,46 +414,77 @@ function PurchasesContent() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {purchases.map((purchase) => (
-                          <TableRow key={purchase.id}>
-                            <TableCell className="font-medium">{purchase.purchaseNumber}</TableCell>
-                            <TableCell>{purchase.supplierName}</TableCell>
-                            <TableCell>{new Date(purchase.purchaseDate).toLocaleDateString()}</TableCell>
-                            <TableCell>{purchase.items?.length || 0} items</TableCell>
-                            <TableCell className="text-right">UGX {purchase.totalAmount.toLocaleString()}</TableCell>
-                            <TableCell>{getStatusBadge(purchase.status)}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => viewPurchase(purchase)}
-                                >
-                                  <IconEye className="size-4" />
-                                </Button>
-                                {purchase.status === "PENDING" && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleReceive(purchase.id)}
-                                  >
-                                    <IconPackage className="size-4 mr-1" />
-                                    Receive
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {purchases.length === 0 && (
+                        {paginatedPurchases.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                               No purchase orders found
                             </TableCell>
                           </TableRow>
+                        ) : (
+                          paginatedPurchases.map((purchase) => (
+                            <TableRow key={purchase.id}>
+                              <TableCell className="font-medium">{purchase.purchaseNumber}</TableCell>
+                              <TableCell>{purchase.supplierName}</TableCell>
+                              <TableCell>{new Date(purchase.purchaseDate).toLocaleDateString()}</TableCell>
+                              <TableCell>{purchase.items?.length || 0} items</TableCell>
+                              <TableCell className="text-right">UGX {purchase.totalAmount.toLocaleString()}</TableCell>
+                              <TableCell>{getStatusBadge(purchase.status)}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => viewPurchase(purchase)}
+                                  >
+                                    <IconEye className="size-4" />
+                                  </Button>
+                                  {purchase.status === "PENDING" && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleReceive(purchase.id)}
+                                    >
+                                      <IconPackage className="size-4 mr-1" />
+                                      Receive
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
                         )}
                       </TableBody>
                     </Table>
+                    
+                    {/* Pagination Controls */}
+                    {purchases.length > 0 && (
+                      <div className="flex items-center justify-between px-2 py-4 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Rows per page</span>
+                          <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                            <SelectTrigger className="w-20 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[10, 20, 50, 100].map((size) => (
+                                <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, purchases.length)} of {purchases.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>First</Button>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+                          <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages}>Next</Button>
+                          <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>Last</Button>
+                        </div>
+                      </div>
+                    )}
+                    </>
                   )}
                 </CardContent>
               </Card>

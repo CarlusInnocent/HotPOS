@@ -17,6 +17,8 @@ public interface ReturnRepository extends JpaRepository<Return, Long> {
     boolean existsByReturnNumber(String returnNumber);
     
     List<Return> findByBranchId(Long branchId);
+
+    List<Return> findByBranchIdOrderByReturnDateDescCreatedAtDesc(Long branchId);
     
     List<Return> findBySupplierId(Long supplierId);
     

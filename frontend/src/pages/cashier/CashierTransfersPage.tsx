@@ -103,6 +103,14 @@ export function CashierTransfersPage() {
   const [viewOpen, setViewOpen] = useState(false)
   const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null)
 
+  // Pagination for outgoing
+  const [outgoingPage, setOutgoingPage] = useState(1)
+  const [outgoingPageSize, setOutgoingPageSize] = useState(100)
+
+  // Pagination for incoming
+  const [incomingPage, setIncomingPage] = useState(1)
+  const [incomingPageSize, setIncomingPageSize] = useState(100)
+
   useEffect(() => {
     if (user?.branchId) {
       loadData()
@@ -242,6 +250,14 @@ export function CashierTransfersPage() {
   // Separate incoming into pending receipt (IN_TRANSIT)
   const pendingReceipt = incoming.filter((t) => t.status === "IN_TRANSIT")
 
+  // Pagination calculations for outgoing
+  const outgoingTotalPages = Math.max(1, Math.ceil(outgoing.length / outgoingPageSize))
+  const paginatedOutgoing = outgoing.slice((outgoingPage - 1) * outgoingPageSize, outgoingPage * outgoingPageSize)
+
+  // Pagination calculations for incoming
+  const incomingTotalPages = Math.max(1, Math.ceil(incoming.length / incomingPageSize))
+  const paginatedIncoming = incoming.slice((incomingPage - 1) * incomingPageSize, incomingPage * incomingPageSize)
+
   return (
     <SidebarProvider>
       <AppSidebar variant="inset" />
@@ -317,7 +333,7 @@ export function CashierTransfersPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {outgoing.map((t) => (
+                            {paginatedOutgoing.map((t) => (
                               <TableRow key={t.id}>
                                 <TableCell className="font-mono text-sm">
                                   {t.transferNumber}
@@ -354,6 +370,34 @@ export function CashierTransfersPage() {
                             ))}
                           </TableBody>
                         </Table>
+                      </div>
+                    )}
+                    {/* Pagination Controls for Outgoing */}
+                    {outgoing.length > 0 && (
+                      <div className="flex items-center justify-between px-2 py-4 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Rows per page</span>
+                          <Select value={outgoingPageSize.toString()} onValueChange={(v) => { setOutgoingPageSize(Number(v)); setOutgoingPage(1) }}>
+                            <SelectTrigger className="w-20 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[10, 20, 50, 100].map((size) => (
+                                <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Showing {(outgoingPage - 1) * outgoingPageSize + 1}-{Math.min(outgoingPage * outgoingPageSize, outgoing.length)} of {outgoing.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setOutgoingPage(1)} disabled={outgoingPage === 1}>First</Button>
+                          <Button variant="outline" size="sm" onClick={() => setOutgoingPage(p => p - 1)} disabled={outgoingPage === 1}>Previous</Button>
+                          <span className="text-sm">Page {outgoingPage} of {outgoingTotalPages}</span>
+                          <Button variant="outline" size="sm" onClick={() => setOutgoingPage(p => p + 1)} disabled={outgoingPage >= outgoingTotalPages}>Next</Button>
+                          <Button variant="outline" size="sm" onClick={() => setOutgoingPage(outgoingTotalPages)} disabled={outgoingPage >= outgoingTotalPages}>Last</Button>
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -461,7 +505,7 @@ export function CashierTransfersPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {incoming.map((t) => (
+                            {paginatedIncoming.map((t) => (
                               <TableRow key={t.id}>
                                 <TableCell className="font-mono text-sm">
                                   {t.transferNumber}
@@ -501,6 +545,34 @@ export function CashierTransfersPage() {
                             ))}
                           </TableBody>
                         </Table>
+                      </div>
+                    )}
+                    {/* Pagination Controls for Incoming */}
+                    {incoming.length > 0 && (
+                      <div className="flex items-center justify-between px-2 py-4 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Rows per page</span>
+                          <Select value={incomingPageSize.toString()} onValueChange={(v) => { setIncomingPageSize(Number(v)); setIncomingPage(1) }}>
+                            <SelectTrigger className="w-20 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[10, 20, 50, 100].map((size) => (
+                                <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Showing {(incomingPage - 1) * incomingPageSize + 1}-{Math.min(incomingPage * incomingPageSize, incoming.length)} of {incoming.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setIncomingPage(1)} disabled={incomingPage === 1}>First</Button>
+                          <Button variant="outline" size="sm" onClick={() => setIncomingPage(p => p - 1)} disabled={incomingPage === 1}>Previous</Button>
+                          <span className="text-sm">Page {incomingPage} of {incomingTotalPages}</span>
+                          <Button variant="outline" size="sm" onClick={() => setIncomingPage(p => p + 1)} disabled={incomingPage >= incomingTotalPages}>Next</Button>
+                          <Button variant="outline" size="sm" onClick={() => setIncomingPage(incomingTotalPages)} disabled={incomingPage >= incomingTotalPages}>Last</Button>
+                        </div>
                       </div>
                     )}
                   </CardContent>

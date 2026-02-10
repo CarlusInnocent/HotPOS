@@ -25,13 +25,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { salesApi, type Sale } from "@/lib/api"
+import { salesApi, dashboardApi, type Sale, type DashboardStats } from "@/lib/api"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Bar, BarChart, XAxis, YAxis, Pie, PieChart, Cell, Line, LineChart, ResponsiveContainer } from "recharts"
 
 function AnalyticsContent() {
   const { selectedBranch, isCompanyView, branches } = useBranch()
   const [sales, setSales] = useState<Sale[]>([])
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,6 +43,10 @@ function AnalyticsContent() {
   const loadData = async () => {
     setLoading(true)
     try {
+      // Fetch dashboard stats
+      const statsData = await dashboardApi.getStats(selectedBranch?.id)
+      setStats(statsData)
+
       if (isCompanyView && branches.length > 0) {
         // Company-wide: fetch sales from all branches and merge
         const allSalesArrays = await Promise.all(
@@ -64,7 +69,6 @@ function AnalyticsContent() {
 
   // Calculate analytics
   const today = new Date()
-  const todaySales = sales.filter(s => new Date(s.saleDate).toDateString() === today.toDateString())
   const thisMonthSales = sales.filter(s => {
     const saleDate = new Date(s.saleDate)
     return saleDate.getMonth() === today.getMonth() && saleDate.getFullYear() === today.getFullYear()
@@ -76,10 +80,8 @@ function AnalyticsContent() {
     return saleDate.getMonth() === lastMonth && saleDate.getFullYear() === lastMonthYear
   })
 
-  const totalToday = todaySales.reduce((acc, s) => acc + s.grandTotal, 0)
   const totalThisMonth = thisMonthSales.reduce((acc, s) => acc + s.grandTotal, 0)
   const totalLastMonth = lastMonthSales.reduce((acc, s) => acc + s.grandTotal, 0)
-  const avgTransaction = sales.length > 0 ? sales.reduce((acc, s) => acc + s.grandTotal, 0) / sales.length : 0
   
   const monthGrowth = totalLastMonth > 0 
     ? ((totalThisMonth - totalLastMonth) / totalLastMonth * 100).toFixed(1)
@@ -181,12 +183,12 @@ function AnalyticsContent() {
                       <CardHeader className="pb-2">
                         <CardDescription className="flex items-center gap-2">
                           <IconCash className="size-4" />
-                          Today's Sales
+                          Today's Net Sales
                         </CardDescription>
-                        <CardTitle className="text-2xl">UGX {totalToday.toLocaleString()}</CardTitle>
+                        <CardTitle className="text-2xl">UGX {(stats?.totalSalesToday ?? 0).toLocaleString()}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-xs text-muted-foreground">{todaySales.length} transactions</p>
+                        <p className="text-xs text-muted-foreground">{stats?.transactionCountToday ?? 0} transactions</p>
                       </CardContent>
                     </Card>
 
@@ -194,9 +196,9 @@ function AnalyticsContent() {
                       <CardHeader className="pb-2">
                         <CardDescription className="flex items-center gap-2">
                           <IconReceipt className="size-4" />
-                          This Month
+                          This Month (Net)
                         </CardDescription>
-                        <CardTitle className="text-2xl">UGX {totalThisMonth.toLocaleString()}</CardTitle>
+                        <CardTitle className="text-2xl">UGX {(stats?.totalSalesThisMonth ?? 0).toLocaleString()}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className="flex items-center gap-1 text-xs">
@@ -219,10 +221,10 @@ function AnalyticsContent() {
                           <IconShoppingCart className="size-4" />
                           Avg Transaction
                         </CardDescription>
-                        <CardTitle className="text-2xl">UGX {avgTransaction.toLocaleString(undefined, { maximumFractionDigits: 0 })}</CardTitle>
+                        <CardTitle className="text-2xl">UGX {(stats?.averageTransactionValue ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-xs text-muted-foreground">Based on {sales.length} sales</p>
+                        <p className="text-xs text-muted-foreground">Based on {stats?.transactionCountToday ?? 0} today's sales</p>
                       </CardContent>
                     </Card>
 
@@ -230,12 +232,14 @@ function AnalyticsContent() {
                       <CardHeader className="pb-2">
                         <CardDescription className="flex items-center gap-2">
                           <IconReceipt className="size-4" />
-                          Total Transactions
+                          Net Profit
                         </CardDescription>
-                        <CardTitle className="text-2xl">{thisMonthSales.length}</CardTitle>
+                        <CardTitle className={`text-2xl ${(stats?.netProfitThisMonth ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          UGX {(stats?.netProfitThisMonth ?? 0).toLocaleString()}
+                        </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-xs text-muted-foreground">This month</p>
+                        <p className="text-xs text-muted-foreground">This month (after refunds, COGS & expenses)</p>
                       </CardContent>
                     </Card>
                   </div>

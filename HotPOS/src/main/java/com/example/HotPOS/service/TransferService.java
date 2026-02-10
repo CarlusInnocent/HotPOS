@@ -29,13 +29,13 @@ public class TransferService {
     private final SerialNumberRepository serialNumberRepository;
 
     public List<TransferDTO> getTransfersByFromBranch(Long branchId) {
-        return transferRepository.findByFromBranchId(branchId).stream()
+        return transferRepository.findByFromBranchIdOrderByTransferDateDescCreatedAtDesc(branchId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
     public List<TransferDTO> getTransfersByToBranch(Long branchId) {
-        return transferRepository.findByToBranchId(branchId).stream()
+        return transferRepository.findByToBranchIdOrderByTransferDateDescCreatedAtDesc(branchId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }

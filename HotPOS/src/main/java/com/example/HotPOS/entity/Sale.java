@@ -19,7 +19,8 @@ import java.util.List;
     @Index(name = "idx_sales_branch", columnList = "branch_id"),
     @Index(name = "idx_sales_customer", columnList = "customer_id"),
     @Index(name = "idx_sales_date", columnList = "sale_date"),
-    @Index(name = "idx_sales_status", columnList = "payment_status")
+    @Index(name = "idx_sales_status", columnList = "payment_status"),
+    @Index(name = "idx_sales_ref_seq", columnList = "branch_id,sale_date,reference_sequence")
 })
 @Getter
 @Setter
@@ -46,6 +47,13 @@ public class Sale {
 
     @Column(nullable = false, unique = true, length = 50)
     private String saleNumber;
+
+    // Branch-specific, daily-incrementing reference for tracking
+    @Column(name = "reference_number", length = 80, unique = true)
+    private String referenceNumber;
+
+    @Column(name = "reference_sequence")
+    private Integer referenceSequence;
 
     @Column(nullable = false)
     private LocalDate saleDate;

@@ -21,6 +21,13 @@ import {
   type SortingState,
 } from "@tanstack/react-table"
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,13 +38,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -109,10 +109,15 @@ function SaleDetailsDialog({ sale }: { sale: Sale }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <IconReceipt className="size-5" />
-            {sale.saleNumber}
+            <div className="flex flex-col leading-tight">
+              <span>{sale.saleNumber}</span>
+              {sale.referenceNumber && (
+                <span className="text-xs text-muted-foreground">Ref: {sale.referenceNumber}</span>
+              )}
+            </div>
           </DialogTitle>
           <DialogDescription>
-            {formatDate(sale.saleDate)}
+            {formatDate(sale.createdAt || sale.saleDate)}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -197,17 +202,22 @@ const columns: ColumnDef<Sale>[] = [
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
         <IconReceipt className="size-4 text-muted-foreground" />
-        <span className="font-mono text-sm">{row.original.saleNumber}</span>
+        <div className="flex flex-col leading-tight">
+          <span className="font-mono text-sm">{row.original.saleNumber}</span>
+          {row.original.referenceNumber && (
+            <span className="text-[11px] text-muted-foreground">Ref: {row.original.referenceNumber}</span>
+          )}
+        </div>
       </div>
     ),
   },
   {
-    accessorKey: "saleDate",
+    accessorKey: "createdAt",
     header: "Date",
     cell: ({ row }) => (
       <div className="flex items-center gap-2 text-sm">
         <IconCalendar className="size-4 text-muted-foreground" />
-        {formatDate(row.original.saleDate)}
+        {formatDate(row.original.createdAt || row.original.saleDate)}
       </div>
     ),
   },
@@ -274,7 +284,7 @@ export function RecentSalesTable() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: 100,
   })
 
   useEffect(() => {
@@ -297,11 +307,11 @@ export function RecentSalesTable() {
           allSales = await salesApi.getByBranch(selectedBranch.id)
         }
 
-        // Sort by date descending and take recent ones
+        // Sort by createdAt descending (has actual time, unlike saleDate which is date only)
         const sortedSales = allSales.sort(
-          (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()
+          (a, b) => new Date(b.createdAt || b.saleDate).getTime() - new Date(a.createdAt || a.saleDate).getTime()
         )
-        setSales(sortedSales.slice(0, 50))
+        setSales(sortedSales)
       } catch (err) {
         console.error("Failed to fetch sales:", err)
         setError("Failed to load recent sales")
@@ -426,6 +436,13 @@ export function RecentSalesTable() {
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
+                    className={
+                      row.original.refundStatus === 'FULL'
+                        ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
+                        : row.original.refundStatus === 'PARTIAL'
+                          ? 'bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-950/50'
+                          : ''
+                    }
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
@@ -453,6 +470,24 @@ export function RecentSalesTable() {
 
         {/* Pagination */}
         <div className="flex items-center justify-between px-2 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Rows per page</span>
+            <Select
+              value={`${table.getState().pagination.pageSize}`}
+              onValueChange={(value) => table.setPageSize(Number(value))}
+            >
+              <SelectTrigger className="w-20 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 20, 50, 100].map((size) => (
+                  <SelectItem key={size} value={`${size}`}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="text-sm text-muted-foreground">
             Showing {table.getRowModel().rows.length} of {sales.length} sales
           </div>
